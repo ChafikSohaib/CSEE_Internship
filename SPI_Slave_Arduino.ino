@@ -11,10 +11,10 @@ void setup()
 {
   Serial.begin(9600);
   Serial.println("SPI test");
-  pinMode(MISO, OUTPUT);
+  pinMode(MISO, OUTPUT);      // send on master in (slave out)
   digitalWrite(MISO, LOW);
   SPCR |= _BV(SPE);     //SPI Enable
-  SPCR |= _BV(SPIE);    //SPI.attachInterrupt();
+  SPCR |= _BV(SPIE);    //SPI.attachInterrupt(); enable interrupt SPI
 }
 
 
@@ -22,7 +22,7 @@ ISR(SPI_STC_vect)   // SPI interrupt routine
 {
   byte c = SPDR;    // grab byte from SPI data register
 
-  if(pos < sizeof buf)    // add the incoming byte c to the buffer in the next position
+  if(pos < sizeof buf)    // add the incoming byte c to the buffer in the next position if there is some room available
   {
     buf[pos++] = c;
     if(c == '\n')
