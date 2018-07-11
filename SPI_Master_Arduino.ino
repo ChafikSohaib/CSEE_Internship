@@ -7,7 +7,7 @@ void setup()
   pinMode(SS, OUTPUT);        // pin of Slave Select in output
   digitalWrite(SS, HIGH);      
   SPI.begin();
-  SPI.setClockDivider(SPI_CLOCK_DIV4);  //2^n = 2, 4, 8, 16, 32
+  SPI.setClockDivider(SPI_CLOCK_DIV4);  // make the master slow down a bit
 
 }
 
