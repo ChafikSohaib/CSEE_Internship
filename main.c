@@ -1,35 +1,53 @@
-// SPI Communication
+//I2C communication
 
 #include <msp430.h>
+unsigned char TXData;
+unsigned char TXByteCtr;
 
-void main(void)
+int main(void)
 {
-    WDTCTL = WDTPW + WDTHOLD;                       // Stop watchdog timer
-    P3DIR |= BIT0;                                  // Set 3.0 as Output (Latch)
+  WDTCTL = WDTPW + WDTHOLD;                 // Stop WDT
+  P3SEL |= BIT1 + BIT2;                     // Assign I2C pins to USCI_B0
 
-    P3SEL = BIT4 + BIT0;                            // Select P3.4 -> SIMO (Data)
-    P3SEL2 = BIT4 + BIT0;                           // Select P3.0 -> CLK (Clock)
+  UCB0CTL1 |= UCSWRST;                      // Enable SW reset
+  UCB0CTL0 = UCMST + UCMODE_3 + UCSYNC;     // I2C Master, synchronous mode
+  UCB0CTL1 = UCSSEL_2 + UCSWRST;            // Use SMCLK, keep SW reset
+  UCB0BR0 = 12;                             // fSCL = SMCLK/12 = ~100kHz
+  UCB0BR1 = 0;
+  UCB0I2CSA = 0x69;                         // Slave Address is 048h
+  UCB0CTL1 &= ~UCSWRST;                     // Clear SW reset, resume operation
+  IE2 |= UCB0TXIE;                          // Enable TX interrupt
 
-    UCA0CTL1 |= UCSWRST;                            // Hold USCI in reset state
-    UCA0CTL0 |= UCCKPL + UCMST + UCSYNC;            // 3-pin, 8-bit, SPI Master
-    UCA0CTL1 |= UCSSEL_2;                           // Clock -> SMCLK
-    UCA0BR0 = 0x02;                                 // SPI CLK -> SMCLK/2
-    UCA0CTL1 &= ~UCSWRST;                           // Initialise USCI module
+  TXData = 0x34;                            // Holds TX data
 
-    while(1)
-    {
-        P3OUT &= ~BIT0;                             // Set Latch to LOW
-        while (!(IFG2 & UCA0TXIFG));                // Check if TX Buffer is empty
-        UCA0TXBUF = 0xAA;                           // Transmit first pattern
-        while ((UCA0STAT & UCBUSY));                // Wait till TX Completes
-        P3OUT |= BIT3;                              // Set Latch to HIGH
-        __delay_cycles(500000);                     // Delay 500 ms
+  while (1)
+  {
+    TXByteCtr = 1;                          // Load TX byte counter
 
-        P3OUT &= ~BIT3;                             // Set Latch to LOW
-        while (!(IFG2 & UCA0TXIFG));                // Check if TX Buffer is empty
-        UCA0TXBUF = 0x55;                           // Transmit second pattern
-        while ((UCA0STAT & UCBUSY));                // Wait till TX Completes
-        P3OUT |= BIT3;                              // Set Latch to HIGH
-        __delay_cycles(500000);                     // Delay 500 ms
-    }
+    UCB0CTL1 |= UCTR + UCTXSTT;             // I2C TX, start condition
+    __bis_SR_register(CPUOFF + GIE);        // Enter LPM0 w/ interrupts
+                                            // Remain in LPM0 until all data
+                                            // is TX'd
+    TXData++;                               // Increment data byte
+  }
+}
+
+//------------------------------------------------------------------------------
+// The USCIAB0TX_ISR is structured such that it can be used to transmit any
+// number of bytes by pre-loading TXByteCtr with the byte count.
+//------------------------------------------------------------------------------
+#pragma vector = USCIAB0TX_VECTOR
+__interrupt void USCIAB0TX_ISR(void)
+{
+  if (TXByteCtr)                            // Check TX byte counter
+  {
+    UCB0TXBUF = TXData;                     // Load TX buffer
+    TXByteCtr--;                            // Decrement TX byte counter
+  }
+  else
+  {
+    UCB0CTL1 |= UCTXSTP;                    // I2C stop condition
+    IFG2 &= ~UCB0TXIFG;                     // Clear USCI_B0 TX int flag
+    __bic_SR_register_on_exit(CPUOFF);      // Exit LPM0
+  }
 }
