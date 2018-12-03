@@ -1,2 +1,4 @@
 # CSEE-Internship2018
-Arduino Examples 
+Arduino Examples in master 
+
+PS: Other branches for the MSP430
